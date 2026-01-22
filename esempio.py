@@ -24,9 +24,11 @@ class Game(arcade.Window):
         self.player = Player()
         self.platforms = arcade.SpriteList()
         self.coins = arcade.SpriteList()
+        self.playerSpriteList = arcade.SpriteList()
 
         self.score = 0
         self.physics_engine = None
+        self.score_text = None  # Testo del punteggio
 
     def setup(self):
         # Terreno
@@ -50,22 +52,30 @@ class Game(arcade.Window):
             coin.center_y = y + 40
             self.coins.append(coin)
 
+        # Motore fisico
         self.physics_engine = arcade.PhysicsEnginePlatformer(
             self.player, self.platforms, gravity_constant=GRAVITY
         )
 
-    def on_draw(self):
-        arcade.start_render()
+        # Aggiungiamo player alla SpriteList
+        self.playerSpriteList.append(self.player)
 
+        # Testo del punteggio
+        self.score_text = arcade.Text(
+            text=f"Punteggio: {self.score}",
+            x=20,
+            y=SCREEN_HEIGHT - 40,
+        )
+
+    def on_draw(self):
+        self.clear()
         self.platforms.draw()
         self.coins.draw()
-        self.player.draw()
+        self.playerSpriteList.draw()
 
-        arcade.draw_text(
-            f"Punteggio: {self.score}",
-            20, SCREEN_HEIGHT - 40,
-            arcade.color.BLACK, 20
-        )
+        # Aggiorniamo il punteggio e lo disegniamo
+        self.score_text.text = f"Punteggio: {self.score}"
+        self.score_text.draw()
 
     def on_update(self, delta_time):
         self.physics_engine.update()
@@ -78,17 +88,20 @@ class Game(arcade.Window):
             coin.remove_from_sprite_lists()
             self.score += 10
 
+    # ----------------------------
+    # MOVIMENTO A DESTRA/SINISTRA
+    # ----------------------------
     def on_key_press(self, key, modifiers):
-        if key == arcade.key.A:
+        if key == arcade.key.A or key == arcade.key.LEFT:
             self.player.change_x = -PLAYER_SPEED
-        elif key == arcade.key.D:
+        elif key == arcade.key.D or key == arcade.key.RIGHT:
             self.player.change_x = PLAYER_SPEED
         elif key == arcade.key.SPACE:
             if self.physics_engine.can_jump():
                 self.player.change_y = JUMP_SPEED
 
     def on_key_release(self, key, modifiers):
-        if key in (arcade.key.A, arcade.key.D):
+        if key in (arcade.key.A, arcade.key.D, arcade.key.LEFT, arcade.key.RIGHT):
             self.player.change_x = 0
 
 def main():
