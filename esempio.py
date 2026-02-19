@@ -16,13 +16,9 @@ PLATFORM_WIDTH = 120
 PLATFORM_HEIGHT = 30
 GROUND_HEIGHT = 40
 
-COIN_SIZE = 20
-COIN_COLOR = arcade.color.GOLD
-COIN_RESPAWN_TIME = 3  # secondi
+PLATFORM_SPEED = 3  # 🔥 stessa velocità per tutte
 
-BACKGROUND_COLOR = arcade.color.SKY_BLUE
-SCORE_TEXT_COLOR = arcade.color.WHITE
-SCORE_TEXT_SIZE = 18
+COIN_RESPAWN_TIME = 3
 
 SCREEN_WIDTH = 1280
 SCREEN_HEIGHT = 720
@@ -38,22 +34,38 @@ class Player(arcade.SpriteSolidColor):
         self.center_y = 150
 
 # ------------------
+# PIATTAFORMA MOBILE
+# ------------------
+class MovingPlatform(arcade.SpriteSolidColor):
+    def __init__(self, x, y):
+        super().__init__(PLATFORM_WIDTH, PLATFORM_HEIGHT, PLATFORM_COLOR)
+        self.center_x = x
+        self.center_y = y
+        self.change_x = PLATFORM_SPEED
+
+    def update(self, delta_time=0):
+        self.center_x += self.change_x
+
+        # 🔥 rimbalzo ai bordi dello schermo
+        if self.left <= 0 or self.right >= SCREEN_WIDTH:
+            self.change_x *= -1
+
+# ------------------
 # COIN
 # ------------------
 class Coin(arcade.Sprite):
     def __init__(self, piattaforma):
-        # Usa l'immagine "moneta.png" e scala 1.0 (puoi modificare se troppo grande o piccola)
-        super().__init__("C:/Users/tahasin.mia/Desktop/gioco2d/immagini/coin.jpg", scale=0.05)
-        
+        super().__init__(
+            "C:/Users/tahasin.mia/Desktop/gioco2d/immagini/coin.jpg",
+            scale=0.05
+        )
         self.piattaforma = piattaforma
-        self.reset_position()
         self.timer = 0
-        self.da_respawnare = False
+        self.update_position()
 
-    def reset_position(self):
-        # Posiziona la moneta sopra la piattaforma
+    def update_position(self):
         self.center_x = self.piattaforma.center_x
-        self.center_y = self.piattaforma.top + self.height / 2  # usa l'altezza della sprite
+        self.center_y = self.piattaforma.top + self.height / 2
 
 # ------------------
 # GAME
@@ -62,113 +74,127 @@ class Game(arcade.Window):
     def __init__(self):
         super().__init__(SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_TITLE)
 
-        # Sprite Lists
         self.player_list = arcade.SpriteList()
         self.platforms = arcade.SpriteList()
         self.coins = arcade.SpriteList()
         self.coins_inattive = []
 
-        # Player
         self.player = Player()
         self.player_list.append(self.player)
 
-        # Physics
         self.physics_engine = None
 
-        # Score
         self.score = 0
+        self.level = 0
+        self.level_text_timer = 0
+        self.show_level_text = False
 
-        # Piattaforme
         self.platform_positions = [(300, 150), (500, 250), (650, 350),
-                                   (850, 450), (1100, 550), (1400, 650)]
+                                   (850, 450), (1100, 550)]
 
-    # ------------------
-    # SETUP
     # ------------------
     def setup(self):
-        
-        self.background = arcade.load_texture("C:/Users/tahasin.mia/Desktop/gioco2d/immagini/sfondo.webp")
 
-        # Terreno
-        ground = arcade.SpriteSolidColor(SCREEN_WIDTH, GROUND_HEIGHT, arcade.color.DARK_GREEN)
+        self.background = arcade.load_texture(
+            "C:/Users/tahasin.mia/Desktop/gioco2d/immagini/sfondo.webp"
+        )
+
+        # Terreno fisso
+        ground = arcade.SpriteSolidColor(
+            SCREEN_WIDTH, GROUND_HEIGHT, arcade.color.DARK_GREEN
+        )
         ground.center_x = SCREEN_WIDTH // 2
         ground.center_y = GROUND_HEIGHT // 2
         self.platforms.append(ground)
 
-        # Piattaforme
+        # 🔥 Piattaforme mobili
         for x, y in self.platform_positions:
-            box = arcade.SpriteSolidColor(PLATFORM_WIDTH, PLATFORM_HEIGHT, PLATFORM_COLOR)
-            box.center_x = x
-            box.center_y = y
-            self.platforms.append(box)
+            platform = MovingPlatform(x, y)
+            self.platforms.append(platform)
 
-        # Monete
+        # Monete sopra ogni piattaforma mobile
         for p in self.platforms:
-            if p.width < SCREEN_WIDTH:  # esclude il terreno
+            if isinstance(p, MovingPlatform):
                 coin = Coin(p)
                 self.coins.append(coin)
 
-        # Physics Engine
         self.physics_engine = arcade.PhysicsEnginePlatformer(
             self.player, self.platforms, gravity_constant=GRAVITY
         )
 
     # ------------------
-    # DRAW
-    # ------------------
     def on_draw(self):
         self.clear()
+
         arcade.draw_texture_rect(
             self.background,
-            arcade.LBWH(0,0,1280,720)
+            arcade.LBWH(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
         )
+
         self.platforms.draw()
         self.coins.draw()
         self.player_list.draw()
 
-        
+        arcade.draw_text(
+            f"Punteggio: {self.score}",
+            20,
+            SCREEN_HEIGHT - 40,
+            arcade.color.WHITE,
+            18
+        )
 
-        # Punteggio
-        arcade.draw_text(f"Punteggio: {self.score}", 20, SCREEN_HEIGHT - 40,
-                         SCORE_TEXT_COLOR, SCORE_TEXT_SIZE)
+        if self.show_level_text:
+            arcade.draw_text(
+                f"LEVEL {self.level}",
+                SCREEN_WIDTH // 2,
+                SCREEN_HEIGHT // 2,
+                arcade.color.YELLOW,
+                50,
+                anchor_x="center",
+                anchor_y="center"
+            )
 
-    # ------------------
-    # UPDATE
     # ------------------
     def on_update(self, delta_time):
+
+        self.platforms.update()
         self.physics_engine.update()
 
-        # Blocca player dentro lo schermo
-        if self.player.left < 0:
-            self.player.left = 0
-        if self.player.right > SCREEN_WIDTH:
-            self.player.right = SCREEN_WIDTH
-        if self.player.bottom < 0:
-            self.player.bottom = 0
-        if self.player.top > SCREEN_HEIGHT:
-            self.player.top = SCREEN_HEIGHT
+        # Monete seguono le piattaforme
+        for coin in self.coins:
+            coin.update_position()
 
-        # Collisione con monete
-        coins_hit = arcade.check_for_collision_with_list(self.player, self.coins)
+        # Collisione monete
+        coins_hit = arcade.check_for_collision_with_list(
+            self.player, self.coins
+        )
+
         for coin in coins_hit:
             coin.remove_from_sprite_lists()
-            coin.da_respawnare = True
             coin.timer = 0
             self.coins_inattive.append(coin)
             self.score += 10
+
+            new_level = self.score // 100
+            if new_level > self.level:
+                self.level = new_level
+                self.show_level_text = True
+                self.level_text_timer = 0
 
         # Respawn monete
         for coin in list(self.coins_inattive):
             coin.timer += delta_time
             if coin.timer >= COIN_RESPAWN_TIME:
-                coin.reset_position()
-                coin.da_respawnare = False
-                coin.timer = 0
+                coin.update_position()
                 self.coins.append(coin)
                 self.coins_inattive.remove(coin)
 
-    # ------------------
-    # INPUT
+        # Timer testo livello
+        if self.show_level_text:
+            self.level_text_timer += delta_time
+            if self.level_text_timer >= 2:
+                self.show_level_text = False
+
     # ------------------
     def on_key_press(self, key, modifiers):
         if key == arcade.key.A:
@@ -183,8 +209,6 @@ class Game(arcade.Window):
         if key in (arcade.key.A, arcade.key.D):
             self.player.change_x = 0
 
-# ------------------
-# MAIN
 # ------------------
 def main():
     game = Game()
