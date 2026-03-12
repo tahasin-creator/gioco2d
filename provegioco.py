@@ -1,219 +1,194 @@
 import arcade
+import random
 
-# ------------------
-# COSTANTI DI GIOCO
-# ------------------
-PLAYER_WIDTH = 40
-PLAYER_HEIGHT = 60
-PLAYER_COLOR = arcade.color.BLUE
-PLAYER_SPEED = 5
-PLAYER_JUMP_SPEED = 15
+# ------------------------
+# COSTANTI GIOCO
+# ------------------------
+LARGHEZZA = 800
+ALTEZZA = 600
+TITOLO = "Flappy Bird Livelli"
 
-GRAVITY = 0.6
+GRAVITA = 0.3        # uccellino più lento
+SALTO = 4            # salto ridotto
 
-PLATFORM_COLOR = arcade.color.BROWN
-PLATFORM_WIDTH = 120
-PLATFORM_HEIGHT = 30
-GROUND_HEIGHT = 40
+VELOCITA_TUBI = 2.5  # ostacoli più lenti
+SPAZIO = 180
+TUBO_LARGHEZZA = 50  # ostacoli più stretti
 
-PLATFORM_SPEED = 3  # 🔥 stessa velocità per tutte
+OSTACOLI_PER_LIVELLO = 10
 
-COIN_RESPAWN_TIME = 3
+# ------------------------
+# CLASSE GIOCO
+# ------------------------
+class Gioco(arcade.Window):
 
-SCREEN_WIDTH = 1280
-SCREEN_HEIGHT = 720
-SCREEN_TITLE = "Platformer 2D - Semplice"
-
-# ------------------
-# PLAYER
-# ------------------
-class Player(arcade.SpriteSolidColor):
     def __init__(self):
-        super().__init__(PLAYER_WIDTH, PLAYER_HEIGHT, PLAYER_COLOR)
-        self.center_x = 100
-        self.center_y = 150
+        super().__init__(LARGHEZZA, ALTEZZA, TITOLO)
 
-# ------------------
-# PIATTAFORMA MOBILE
-# ------------------
-class MovingPlatform(arcade.SpriteSolidColor):
-    def __init__(self, x, y):
-        super().__init__(PLATFORM_WIDTH, PLATFORM_HEIGHT, PLATFORM_COLOR)
-        self.center_x = x
-        self.center_y = y
-        self.change_x = PLATFORM_SPEED
+        self.player_list = None
+        self.tubi = None
+        self.uccello = None
 
-    def update(self, delta_time=0):
-        self.center_x += self.change_x
+        self.velocita_y = 0
+        self.punteggio = 0
+        self.livello = 1
+        self.game_over = False
+        self.paused = False  # variabile pausa
+        self.ostacoli_passati = 0
 
-        # 🔥 rimbalzo ai bordi dello schermo
-        if self.left <= 0 or self.right >= SCREEN_WIDTH:
-            self.change_x *= -1
-
-# ------------------
-# COIN
-# ------------------
-class Coin(arcade.Sprite):
-    def __init__(self, piattaforma):
-        super().__init__(
-            "C:/Users/tahasin.mia/Desktop/gioco2d/immagini/coin.jpg",
-            scale=0.05
-        )
-        self.piattaforma = piattaforma
-        self.timer = 0
-        self.update_position()
-
-    def update_position(self):
-        self.center_x = self.piattaforma.center_x
-        self.center_y = self.piattaforma.top + self.height / 2
-
-# ------------------
-# GAME
-# ------------------
-class Game(arcade.Window):
-    def __init__(self):
-        super().__init__(SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_TITLE)
-
-        self.player_list = arcade.SpriteList()
-        self.platforms = arcade.SpriteList()
-        self.coins = arcade.SpriteList()
-        self.coins_inattive = []
-
-        self.player = Player()
-        self.player_list.append(self.player)
-
-        self.physics_engine = None
-
-        self.score = 0
-        self.level = 0
-        self.level_text_timer = 0
-        self.show_level_text = False
-
-        self.platform_positions = [(300, 150), (500, 250), (650, 350),
-                                   (850, 450), (1100, 550)]
-
-    # ------------------
+    # ------------------------
+    # SETUP INIZIALE
+    # ------------------------
     def setup(self):
+        self.player_list = arcade.SpriteList()
+        self.tubi = arcade.SpriteList()
 
-        self.background = arcade.load_texture(
-            "C:/Users/tahasin.mia/Desktop/gioco2d/immagini/sfondo.webp"
-        )
+        self.uccello = arcade.SpriteSolidColor(30, 30, arcade.color.YELLOW)
+        self.uccello.center_x = 200
+        self.uccello.center_y = 300
+        self.player_list.append(self.uccello)
 
-        # Terreno fisso
-        ground = arcade.SpriteSolidColor(
-            SCREEN_WIDTH, GROUND_HEIGHT, arcade.color.DARK_GREEN
-        )
-        ground.center_x = SCREEN_WIDTH // 2
-        ground.center_y = GROUND_HEIGHT // 2
-        self.platforms.append(ground)
+        self.punteggio = 0
+        self.livello = 1
+        self.game_over = False
+        self.paused = False
+        self.ostacoli_passati = 0
 
-        # 🔥 Piattaforme mobili
-        for x, y in self.platform_positions:
-            platform = MovingPlatform(x, y)
-            self.platforms.append(platform)
+        for i in range(3):
+            self.crea_tubi(LARGHEZZA + i * 300)
 
-        # Monete sopra ogni piattaforma mobile
-        for p in self.platforms:
-            if isinstance(p, MovingPlatform):
-                coin = Coin(p)
-                self.coins.append(coin)
+    # ------------------------
+    # CREA TUBI
+    # ------------------------
+    def crea_tubi(self, x):
+        y_spazio = random.randint(200, 400)
 
-        self.physics_engine = arcade.PhysicsEnginePlatformer(
-            self.player, self.platforms, gravity_constant=GRAVITY
-        )
+        altezza_basso = y_spazio - SPAZIO // 2
+        tubo_basso = arcade.SpriteSolidColor(TUBO_LARGHEZZA, altezza_basso, arcade.color.GREEN)
+        tubo_basso.center_x = x
+        tubo_basso.center_y = altezza_basso / 2
 
-    # ------------------
+        altezza_alto = ALTEZZA - (y_spazio + SPAZIO // 2)
+        tubo_alto = arcade.SpriteSolidColor(TUBO_LARGHEZZA, altezza_alto, arcade.color.GREEN)
+        tubo_alto.center_x = x
+        tubo_alto.center_y = y_spazio + SPAZIO // 2 + altezza_alto / 2
+
+        self.tubi.append(tubo_basso)
+        self.tubi.append(tubo_alto)
+
+    # ------------------------
+    # DISEGNO
+    # ------------------------
     def on_draw(self):
         self.clear()
-
-        arcade.draw_texture_rect(
-            self.background,
-            arcade.LBWH(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
-        )
-
-        self.platforms.draw()
-        self.coins.draw()
         self.player_list.draw()
+        self.tubi.draw()
 
         arcade.draw_text(
-            f"Punteggio: {self.score}",
+            f"Punteggio: {self.punteggio}",
             20,
-            SCREEN_HEIGHT - 40,
+            ALTEZZA - 40,
             arcade.color.WHITE,
-            18
+            20
         )
 
-        if self.show_level_text:
+        arcade.draw_text(
+            f"Livello: {self.livello}",
+            700,
+            ALTEZZA - 40,
+            arcade.color.YELLOW,
+            20
+        )
+
+        if self.game_over:
             arcade.draw_text(
-                f"LEVEL {self.level}",
-                SCREEN_WIDTH // 2,
-                SCREEN_HEIGHT // 2,
-                arcade.color.YELLOW,
-                50,
-                anchor_x="center",
-                anchor_y="center"
+                "GAME OVER",
+                LARGHEZZA / 2,
+                ALTEZZA / 2 + 40,
+                arcade.color.RED,
+                40,
+                anchor_x="center"
+            )
+            arcade.draw_text(
+                "Premi R per ricominciare",
+                LARGHEZZA / 2,
+                ALTEZZA / 2,
+                arcade.color.WHITE,
+                20,
+                anchor_x="center"
             )
 
-    # ------------------
+        if self.paused and not self.game_over:
+            arcade.draw_text(
+                "PAUSA",
+                LARGHEZZA / 2,
+                ALTEZZA / 2 + 20,
+                arcade.color.YELLOW,
+                40,
+                anchor_x="center"
+            )
+            arcade.draw_text(
+                "Premi P per riprendere",
+                LARGHEZZA / 2,
+                ALTEZZA / 2 - 20,
+                arcade.color.WHITE,
+                20,
+                anchor_x="center"
+            )
+
+    # ------------------------
+    # LOGICA
+    # ------------------------
     def on_update(self, delta_time):
+        if self.game_over or self.paused:
+            return  # ferma tutto se game over o in pausa
 
-        self.platforms.update()
-        self.physics_engine.update()
+        # gravità
+        self.velocita_y -= GRAVITA
+        self.uccello.center_y += self.velocita_y
 
-        # Monete seguono le piattaforme
-        for coin in self.coins:
-            coin.update_position()
+        # movimento ostacoli
+        for tubo in self.tubi:
+            tubo.center_x -= VELOCITA_TUBI
 
-        # Collisione monete
-        coins_hit = arcade.check_for_collision_with_list(
-            self.player, self.coins
-        )
+        # rimuovi ostacoli fuori schermo e aggiorna punteggio
+        for tubo in list(self.tubi):
+            if tubo.right < 0:
+                tubo.remove_from_sprite_lists()
+                if tubo.center_y < ALTEZZA / 2:
+                    self.ostacoli_passati += 1
+                    self.punteggio += 1
+                    if self.ostacoli_passati % OSTACOLI_PER_LIVELLO == 0:
+                        self.livello += 1
 
-        for coin in coins_hit:
-            coin.remove_from_sprite_lists()
-            coin.timer = 0
-            self.coins_inattive.append(coin)
-            self.score += 10
+        # crea nuovi tubi se necessario
+        if len(self.tubi) < 6:
+            self.crea_tubi(LARGHEZZA + 200)
 
-            new_level = self.score // 100
-            if new_level > self.level:
-                self.level = new_level
-                self.show_level_text = True
-                self.level_text_timer = 0
+        # collisioni
+        colpito = arcade.check_for_collision_with_list(self.uccello, self.tubi)
+        if len(colpito) > 0 or self.uccello.bottom <= 0 or self.uccello.top >= ALTEZZA:
+            self.game_over = True
 
-        # Respawn monete
-        for coin in list(self.coins_inattive):
-            coin.timer += delta_time
-            if coin.timer >= COIN_RESPAWN_TIME:
-                coin.update_position()
-                self.coins.append(coin)
-                self.coins_inattive.remove(coin)
-
-        # Timer testo livello
-        if self.show_level_text:
-            self.level_text_timer += delta_time
-            if self.level_text_timer >= 2:
-                self.show_level_text = False
-
-    # ------------------
+    # ------------------------
+    # CONTROLLI
+    # ------------------------
     def on_key_press(self, key, modifiers):
-        if key == arcade.key.A:
-            self.player.change_x = -PLAYER_SPEED
-        elif key == arcade.key.D:
-            self.player.change_x = PLAYER_SPEED
-        elif key == arcade.key.SPACE:
-            if self.physics_engine.can_jump():
-                self.player.change_y = PLAYER_JUMP_SPEED
+        if key == arcade.key.SPACE and not self.game_over and not self.paused:
+            self.velocita_y = SALTO
+        if key == arcade.key.R and self.game_over:
+            self.setup()
+        if key == arcade.key.P and not self.game_over:
+            self.paused = not self.paused  # toggle pausa
 
-    def on_key_release(self, key, modifiers):
-        if key in (arcade.key.A, arcade.key.D):
-            self.player.change_x = 0
 
-# ------------------
+# ------------------------
+# MAIN
+# ------------------------
 def main():
-    game = Game()
-    game.setup()
+    gioco = Gioco()
+    gioco.setup()
     arcade.run()
 
-if __name__ == "__main__":
-    main()
+
+main()
